@@ -1,7 +1,6 @@
 module github.com/jfrog/terraform-provider-myjfrog
 
-go 1.21.5
-toolchain go1.22.8
+go 1.23
 
 require (
 	github.com/go-resty/resty/v2 v2.16.4
