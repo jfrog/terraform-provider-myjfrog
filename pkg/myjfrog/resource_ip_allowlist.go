@@ -178,7 +178,7 @@ func (r ipAllowListResource) waitForCompletion(ctx context.Context, serverName s
 		}
 		if status != "COMPLETED" {
 			tflog.Info(ctx, "ip allowlist process still in progress")
-			return retry.RetryableError(fmt.Errorf(status))
+			return retry.RetryableError(fmt.Errorf("ip allowlist process status: %s", status))
 		}
 
 		ips = i

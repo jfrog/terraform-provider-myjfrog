@@ -1,3 +1,9 @@
+## 1.0.2 (Nov 7, 2025)
+
+BUG FIXES:
+
+* Fix Custom Domain Name update fails after resource import and apply.
+
 ## 1.0.1 (January 23, 2024)
 
 BUG FIXES:
