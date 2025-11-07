@@ -488,11 +488,20 @@ func (r *customDomainNameResource) Update(ctx context.Context, req resource.Upda
 	go util.SendUsageResourceUpdate(ctx, r.ProviderData.Client.R(), r.ProviderData.ProductId, r.TypeName)
 
 	var plan customDomainNameResourceModel
+	var state customDomainNameResourceModel
 
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Set the ID from state to plan
+	plan.ID = state.ID
 
 	var customDomainName customDomainNameRenewAPIModel
 	resp.Diagnostics.Append(plan.toRenewAPIModel(ctx, &customDomainName)...)

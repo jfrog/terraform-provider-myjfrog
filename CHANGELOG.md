@@ -1,3 +1,9 @@
+## 1.0.2 (Nov 7, 2025). Tested on Artifactory  with Terraform 1.13.5 and OpenTofu 1.10.7
+
+BUG FIXES:
+
+* Fix Custom Domain Name update fails after resource import and apply.
+
 ## 1.0.1 (January 23, 2024)
 
 BUG FIXES:
