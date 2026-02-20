@@ -1,4 +1,4 @@
-## 1.0.3 (February 20, 2026)
+## 1.0.3 (February 20, 2026). Tested on Artifactory  with Terraform 1.14.5 and OpenTofu 1.11.5
 
 BUG FIXES:
 
