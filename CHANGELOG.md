@@ -1,3 +1,9 @@
+## 1.0.3 (February 20, 2026). Tested on Artifactory  with Terraform 1.14.5 and OpenTofu 1.11.5
+
+BUG FIXES:
+
+* resource/myjfrog_custom_domain_name: Fix state drift after import by normalizing PEM certificate data (`certificate_body`, `certificate_chain`) to prevent spurious diffs caused by line ending (`\r\n` vs `\n`) and trailing whitespace differences. Issue: [#55](https://github.com/jfrog/terraform-provider-myjfrog/issues/55) PR: [#61](https://github.com/jfrog/terraform-provider-myjfrog/pull/61)
+
 ## 1.0.2 (Nov 7, 2025). Tested on Artifactory  with Terraform 1.13.5 and OpenTofu 1.10.7
 
 BUG FIXES:
