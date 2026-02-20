@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/go-resty/resty/v2"
@@ -272,11 +273,11 @@ func (r *customDomainNameResourceModel) toRenewAPIModel(_ context.Context, apiMo
 func (r *customDomainNameResourceModel) fromAPIModel(_ context.Context, apiModel *customDomainNameSSLCertificateAPIModel) (ds diag.Diagnostics) {
 	r.ID = types.StringValue(apiModel.CertificateID)
 	r.CertificateName = types.StringValue(apiModel.CertificateName)
-	r.CertificateBody = types.StringValue(apiModel.CertificateBody)
+	r.CertificateBody = types.StringValue(normalizePEM(apiModel.CertificateBody))
 
 	certificateChain := types.StringNull()
 	if apiModel.CertificateChain != "" {
-		certificateChain = types.StringValue(apiModel.CertificateChain)
+		certificateChain = types.StringValue(normalizePEM(apiModel.CertificateChain))
 	}
 	r.CertificateChain = certificateChain
 	r.CertificateExpiry = types.Int64Value(apiModel.Expiry)
@@ -599,4 +600,9 @@ func (r *customDomainNameResource) Delete(ctx context.Context, req resource.Dele
 
 func (r *customDomainNameResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+}
+
+func normalizePEM(s string) string {
+	s = strings.ReplaceAll(s, "\r\n", "\n")
+	return strings.TrimSpace(s) + "\n"
 }
