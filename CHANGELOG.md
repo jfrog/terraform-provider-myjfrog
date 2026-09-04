@@ -1,3 +1,11 @@
+
+## Unreleased
+
+FEATURES:
+
+* **New Resource:** `myjfrog_private_link`: Resource to manage MyJFrog PrivateLink connections for JFrog cloud instances.
+* **New Data Source:** `myjfrog_private_links`: Data source to list PrivateLink connections for a JFrog cloud server.
+
 ## 1.0.3 (August 20, 2026)
 
 SECURITY:
