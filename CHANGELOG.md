@@ -1,3 +1,15 @@
+## Unreleased
+
+BUG FIXES:
+
+* `myjfrog_ip_allowlist`: Treat non-empty `errors[]` in HTTP 200 responses from the allowlist API as errors instead of silently ignoring them.
+* `myjfrog_ip_allowlist`: Fix wrong error message when removing IPs fails ("failed to add IPs" → "failed to remove IPs").
+
+ENHANCEMENTS:
+
+* `myjfrog_ip_allowlist`: Reject private (RFC 1918) IP/CIDR ranges (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`) during validation, as the API does not accept them.
+* `myjfrog_ip_allowlist`: Document API limits (max 4500 unique IP/CIDR values per subscription, max 2500 per request). Limits are not enforced client-side; the API returns an error when exceeded.
+
 ## 1.0.3 (August 20, 2026)
 
 SECURITY:
