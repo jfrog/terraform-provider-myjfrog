@@ -117,7 +117,9 @@ func (r *ipAllowListResource) Schema(ctx context.Context, req resource.SchemaReq
 		MarkdownDescription: "Provides a MyJFrog [IP allowlist](https://jfrog.com/help/r/jfrog-hosting-models-documentation/configure-the-ip/cidr-allowlist) resource to manage list of allow IP/CIDR addresses. " +
 			"To use this resource, you need an access token. Only a Primary Admin can generate MyJFrog tokens. For more information, see [Generate a Token in MyJFrog](https://jfrog.com/help/r/jfrog-hosting-models-documentation/generate-a-token-in-myjfrog).\n\n" +
 			"->This resource is supported only on the Cloud (SaaS) platform.\n\n" +
-			"~>The rate limit is **5 times per hour** for actions that result in a successful outcome (for Create, Update, and Delete actions). See [Allowlist REST API](https://jfrog.com/help/r/jfrog-rest-apis/allowlist-rest-api) for full list of limitations.",
+			"~>The rate limit is **5 times per hour** for actions that result in a successful outcome (for Create, Update, and Delete actions). See [Allowlist REST API](https://jfrog.com/help/r/jfrog-rest-apis/allowlist-rest-api) for full list of limitations.\n\n" +
+			"~>The allowlist supports a maximum of **4500** unique IP/CIDR values per subscription, and a single request (add or remove) supports up to **2500** values. " +
+			"This resource does not enforce these limits; the API rejects requests that exceed them.",
 	}
 }
 
@@ -262,6 +264,13 @@ func (r *ipAllowListResource) mutateIPs(ctx context.Context, serverName string, 
 		return nil, apiErr
 	}
 
+	// The API can return 200 with an `errors` array for partially invalid
+	// requests (e.g. "Existing IPs", "Invalid IPs", "Nonexistent IPs").
+	// Treat non-empty errors on a successful response as an error too.
+	if len(apiErr.Errors) > 0 {
+		return nil, apiErr
+	}
+
 	updatedIPS, err := r.waitForCompletion(ctx, serverName)
 	if err != nil {
 		return nil, err
@@ -374,7 +383,7 @@ func (r *ipAllowListResource) Update(ctx context.Context, req resource.UpdateReq
 		_, e := r.removeIPs(ctx, serverName, ipsToRemove)
 		if e != nil {
 			resp.Diagnostics.AddError(
-				"failed to add IPs",
+				"failed to remove IPs",
 				e.Error(),
 			)
 		}
@@ -471,7 +480,31 @@ func (v ipCIDRValidator) ValidateString(ctx context.Context, req validator.Strin
 			"Invalid IP/CIDR format",
 			err.Error(),
 		)
+		return
 	}
+
+	// The MyJFrog API rejects private (RFC 1918) IP ranges, so reject them upfront.
+	if isPrivateIP(req.ConfigValue.ValueString()) {
+		resp.Diagnostics.AddAttributeError(
+			req.Path,
+			"Private IP/CIDR not allowed",
+			fmt.Sprintf("%s is a private (RFC 1918) IP range and cannot be added to the allowlist. Private ranges are 10.0.0.0/8, 172.16.0.0/12, and 192.168.0.0/16.", req.ConfigValue.ValueString()),
+		)
+	}
+}
+
+// isPrivateIP reports whether the given IP or CIDR falls within an RFC 1918 private range.
+func isPrivateIP(value string) bool {
+	if ip := net.ParseIP(value); ip != nil {
+		return ip.IsPrivate()
+	}
+
+	if _, ipNet, err := net.ParseCIDR(value); err == nil {
+		// A CIDR block is private if its base address is private.
+		return ipNet.IP.IsPrivate()
+	}
+
+	return false
 }
 
 func IPCIDR() ipCIDRValidator {
