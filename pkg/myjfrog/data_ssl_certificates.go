@@ -15,25 +15,25 @@ import (
 	"github.com/samber/lo"
 )
 
-var _ datasource.DataSource = (*certificatesDataSource)(nil)
+var _ datasource.DataSource = (*sslSslCertificatesDataSource)(nil)
 
-type certificatesDataSource struct {
+type sslSslCertificatesDataSource struct {
 	ProviderData util.ProviderMetadata
 	TypeName     string
 	Client       *resty.Client
 }
 
-func NewCertificatesDataSource() datasource.DataSource {
-	return &certificatesDataSource{
-		TypeName: "myjfrog_certificates",
+func NewSslCertificatesDataSource() datasource.DataSource {
+	return &sslSslCertificatesDataSource{
+		TypeName: "myjfrog_ssl_certificates",
 	}
 }
 
-func (d *certificatesDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+func (d *sslSslCertificatesDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
 	resp.TypeName = d.TypeName
 }
 
-func (d *certificatesDataSource) Configure(ctx context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
+func (d *sslSslCertificatesDataSource) Configure(ctx context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
 	}
@@ -52,7 +52,7 @@ func (d *certificatesDataSource) Configure(ctx context.Context, req datasource.C
 		SetRetryMaxWaitTime(2 * time.Minute)
 }
 
-func (d *certificatesDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+func (d *sslSslCertificatesDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
@@ -108,7 +108,7 @@ func (d *certificatesDataSource) Schema(ctx context.Context, req datasource.Sche
 	}
 }
 
-type certificatesDataSourceModel struct {
+type sslSslCertificatesDataSourceModel struct {
 	ID           types.String `tfsdk:"id"`
 	Certificates types.List   `tfsdk:"certificates"`
 }
@@ -148,10 +148,10 @@ var certificateElementType = types.ObjectType{
 	AttrTypes: certificateAttrType,
 }
 
-func (d *certificatesDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
+func (d *sslSslCertificatesDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
 	go util.SendUsage(ctx, d.ProviderData.Client.R(), d.ProviderData.ProductId, d.TypeName)
 
-	var state certificatesDataSourceModel
+	var state sslSslCertificatesDataSourceModel
 
 	resp.Diagnostics.Append(req.Config.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
@@ -180,19 +180,19 @@ func (d *certificatesDataSource) Read(ctx context.Context, req datasource.ReadRe
 		return
 	}
 
-	certificates, ds := toCertificatesList(ctx, result.SSLCertificates)
+	certificates, ds := toSslCertificatesList(ctx, result.SSLCertificates)
 	resp.Diagnostics.Append(ds...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	state.ID = types.StringValue("myjfrog_certificates")
+	state.ID = types.StringValue("myjfrog_ssl_certificates")
 	state.Certificates = certificates
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
-func toCertificatesList(ctx context.Context, apiCertificates []customDomainNameSSLCertificateAPIModel) (types.List, diag.Diagnostics) {
+func toSslCertificatesList(ctx context.Context, apiCertificates []customDomainNameSSLCertificateAPIModel) (types.List, diag.Diagnostics) {
 	var ds diag.Diagnostics
 
 	elements := lo.Map(
