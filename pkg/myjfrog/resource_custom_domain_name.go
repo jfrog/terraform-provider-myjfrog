@@ -149,7 +149,7 @@ func (r *customDomainNameResource) Schema(ctx context.Context, req resource.Sche
 				},
 			},
 		},
-		MarkdownDescription: "Provides a MyJFrog [Custom Domain Name](https://jfrog.com/help/r/jfrog-hosting-models-documentation/manage-custom-domain-names-in-myjfrog) resource to manage custom domain names. " +
+		MarkdownDescription: "Provides a MyJFrog [Custom Domain Name](https://jfrog.com/help/r/jfrog-hosting-models-documentation/manage-custom-domain-names-in-myjfrog) resource to manage an SSL certificate together with the custom domain names assigned to it. " +
 			"Also see [Custom Domain Name REST API](https://jfrog.com/help/r/jfrog-rest-apis/custom-domain-name-rest-apis) for more details.\n\n" +
 			"To use this resource, you need an access token. Only a Primary Admin can generate MyJFrog tokens. For more information, see [Generate a Token in MyJFrog](https://jfrog.com/help/r/jfrog-hosting-models-documentation/generate-a-token-in-myjfrog).",
 	}
@@ -269,6 +269,30 @@ func (r *customDomainNameResourceModel) toRenewAPIModel(_ context.Context, apiMo
 	return nil
 }
 
+func (r *customDomainNameResourceModel) toManageDomainsAPIModel(_ context.Context, apiModel *customDomainNameManageDomainsAPIModel) (ds diag.Diagnostics) {
+	domainsUnderCertificate := lo.Map(
+		r.DomainsUnderCertificate.Elements(),
+		func(elem attr.Value, _ int) customDomainNameDomainsCommonAPIModel {
+			attr := elem.(types.Object).Attributes()
+
+			return customDomainNameDomainsCommonAPIModel{
+				URL:                          attr["url"].(types.String).ValueString(),
+				ServerName:                   attr["server_name"].(types.String).ValueString(),
+				Type:                         attr["type"].(types.String).ValueString(),
+				DockerRepositoryNameOverride: attr["docker_repository_name_override"].(types.String).ValueString(),
+			}
+		},
+	)
+	r.DomainsUnderCertificate.Elements()
+
+	*apiModel = customDomainNameManageDomainsAPIModel{
+		CertificateID:           r.ID.ValueString(),
+		DomainsUnderCertificate: domainsUnderCertificate,
+	}
+
+	return nil
+}
+
 func (r *customDomainNameResourceModel) fromAPIModel(_ context.Context, apiModel *customDomainNameSSLCertificateAPIModel) (ds diag.Diagnostics) {
 	r.ID = types.StringValue(apiModel.CertificateID)
 	r.CertificateName = types.StringValue(apiModel.CertificateName)
@@ -358,8 +382,17 @@ type customDomainNameRenewAPIModel struct {
 	CertificateID string `json:"certificate_id"`
 }
 
+type customDomainNameManageDomainsAPIModel struct {
+	CertificateID           string                                  `json:"certificate_id"`
+	DomainsUnderCertificate []customDomainNameDomainsCommonAPIModel `json:"domains_under_certificate"`
+}
+
 var retryCondition = func(r *resty.Response, _ error) bool {
 	return r.StatusCode() == http.StatusConflict
+}
+
+func conflictHint(err string) string {
+	return fmt.Sprintf("%s. another action is in progress on this certificate; retry later", err)
 }
 
 func (r *customDomainNameResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -391,7 +424,11 @@ func (r *customDomainNameResource) Create(ctx context.Context, req resource.Crea
 	}
 
 	if response.IsError() {
-		utilfw.UnableToCreateResourceError(resp, errorResp.Error())
+		errMsg := errorResp.Error()
+		if response.StatusCode() == http.StatusConflict {
+			errMsg = conflictHint(errMsg)
+		}
+		utilfw.UnableToCreateResourceError(resp, errMsg)
 		return
 	}
 
@@ -408,7 +445,11 @@ func (r *customDomainNameResource) Create(ctx context.Context, req resource.Crea
 	}
 
 	if response.IsError() {
-		utilfw.UnableToCreateResourceError(resp, errorResp.Error())
+		errMsg := errorResp.Error()
+		if response.StatusCode() == http.StatusConflict {
+			errMsg = conflictHint(errMsg)
+		}
+		utilfw.UnableToCreateResourceError(resp, errMsg)
 		return
 	}
 
@@ -470,7 +511,16 @@ func (r *customDomainNameResource) Read(ctx context.Context, req resource.ReadRe
 	)
 
 	if !found {
-		utilfw.UnableToRefreshResourceError(resp, fmt.Sprintf("failed to find certificate ID %s", state.ID.ValueString()))
+		cert, found = lo.Find(
+			customDomainName.SSLCertificates,
+			func(item customDomainNameSSLCertificateAPIModel) bool {
+				return item.CertificateName == state.CertificateName.ValueString()
+			},
+		)
+	}
+
+	if !found {
+		utilfw.UnableToRefreshResourceError(resp, fmt.Sprintf("failed to find certificate ID %s or certificate name %s", state.ID.ValueString(), state.CertificateName.ValueString()))
 		return
 	}
 
@@ -503,18 +553,40 @@ func (r *customDomainNameResource) Update(ctx context.Context, req resource.Upda
 	// Set the ID from state to plan
 	plan.ID = state.ID
 
-	var customDomainName customDomainNameRenewAPIModel
-	resp.Diagnostics.Append(plan.toRenewAPIModel(ctx, &customDomainName)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
+	certificateMaterialUnchanged :=
+		plan.CertificateBody.Equal(state.CertificateBody) &&
+			plan.CertificateChain.Equal(state.CertificateChain) &&
+			plan.CertificatePrivateKey.Equal(state.CertificatePrivateKey)
 
 	var errorResp MyJFrogResponseAPIModel
-	response, err := r.Client.R().
-		SetBody(&customDomainName).
-		SetError(&errorResp).
-		AddRetryCondition(retryCondition).
-		Post("api/jmis/v1/ssl/renew")
+	var response *resty.Response
+	var err error
+
+	if certificateMaterialUnchanged {
+		var manageDomains customDomainNameManageDomainsAPIModel
+		resp.Diagnostics.Append(plan.toManageDomainsAPIModel(ctx, &manageDomains)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+
+		response, err = r.Client.R().
+			SetBody(&manageDomains).
+			SetError(&errorResp).
+			AddRetryCondition(retryCondition).
+			Post("api/jmis/v1/ssl/manage_domains")
+	} else {
+		var customDomainName customDomainNameRenewAPIModel
+		resp.Diagnostics.Append(plan.toRenewAPIModel(ctx, &customDomainName)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+
+		response, err = r.Client.R().
+			SetBody(&customDomainName).
+			SetError(&errorResp).
+			AddRetryCondition(retryCondition).
+			Post("api/jmis/v1/ssl/renew")
+	}
 
 	if err != nil {
 		utilfw.UnableToUpdateResourceError(resp, err.Error())
@@ -522,7 +594,11 @@ func (r *customDomainNameResource) Update(ctx context.Context, req resource.Upda
 	}
 
 	if response.IsError() {
-		utilfw.UnableToUpdateResourceError(resp, errorResp.Error())
+		errMsg := errorResp.Error()
+		if response.StatusCode() == http.StatusConflict {
+			errMsg = conflictHint(errMsg)
+		}
+		utilfw.UnableToUpdateResourceError(resp, errMsg)
 		return
 	}
 
@@ -531,6 +607,7 @@ func (r *customDomainNameResource) Update(ctx context.Context, req resource.Upda
 	response, err = r.Client.R().
 		SetResult(&result).
 		SetError(&errorResp).
+		AddRetryCondition(retryCondition).
 		Get("api/jmis/v1/ssl")
 
 	if err != nil {
@@ -539,7 +616,11 @@ func (r *customDomainNameResource) Update(ctx context.Context, req resource.Upda
 	}
 
 	if response.IsError() {
-		utilfw.UnableToUpdateResourceError(resp, errorResp.Error())
+		errMsg := errorResp.Error()
+		if response.StatusCode() == http.StatusConflict {
+			errMsg = conflictHint(errMsg)
+		}
+		utilfw.UnableToUpdateResourceError(resp, errMsg)
 		return
 	}
 
@@ -589,7 +670,11 @@ func (r *customDomainNameResource) Delete(ctx context.Context, req resource.Dele
 	}
 
 	if response.IsError() {
-		utilfw.UnableToDeleteResourceError(resp, errorResp.Error())
+		errMsg := errorResp.Error()
+		if response.StatusCode() == http.StatusConflict {
+			errMsg = conflictHint(errMsg)
+		}
+		utilfw.UnableToDeleteResourceError(resp, errMsg)
 		return
 	}
 

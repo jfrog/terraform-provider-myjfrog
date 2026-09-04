@@ -1,3 +1,15 @@
+## Unreleased
+
+FEATURES:
+
+* `myjfrog_ssl_certificates`: New data source returning the list of SSL certificates from `GET api/jmis/v1/ssl`, including certificate id/name/body/chain/status/expiry and the domains in use.
+
+ENHANCEMENTS:
+
+* `myjfrog_custom_domain_name`: Domain-only updates now use `POST ssl/manage_domains` instead of `ssl/renew`, avoiding unnecessary certificate rotation. Certificate material changes still use renew.
+* `myjfrog_custom_domain_name`: Read falls back to matching `certificate_name` when `certificate_id` is not found.
+* `myjfrog_custom_domain_name`: HTTP 409 responses now include a clearer "another action is in progress on this certificate; retry later" hint.
+
 ## 1.0.3 (August 20, 2026)
 
 SECURITY:

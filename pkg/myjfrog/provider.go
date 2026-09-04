@@ -91,7 +91,9 @@ func (p *MyJFrogProvider) Metadata(ctx context.Context, req provider.MetadataReq
 }
 
 func (p *MyJFrogProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
-	return []func() datasource.DataSource{}
+	return []func() datasource.DataSource{
+		NewSslCertificatesDataSource,
+	}
 }
 
 func (p *MyJFrogProvider) Resources(ctx context.Context) []func() resource.Resource {
