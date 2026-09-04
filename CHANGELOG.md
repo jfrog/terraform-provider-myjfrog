@@ -1,3 +1,11 @@
+## Unreleased
+
+FEATURES:
+
+* **New Data Source:** `myjfrog_ip_ranges`: Data source to fetch MyJFrog IP ranges. Does not require authentication.
+* **New Data Source:** `myjfrog_regions`: Data source to fetch MyJFrog regions. Does not require authentication.
+* **New Data Source:** `myjfrog_servers`: Data source to fetch MyJFrog servers. Requires an API token.
+
 ## 1.0.3 (August 20, 2026)
 
 SECURITY:
